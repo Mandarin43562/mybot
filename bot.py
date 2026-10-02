@@ -21,8 +21,12 @@ WAIT_TEXT = (
     "Пришлём вам инструкцию в порядке очереди."
 )
 
-# Через сколько секунд удалять сообщение (10 минут = 600 секунд)
-DELETE_AFTER = 600
+# Текст сообщения с просьбой подписаться
+SUBSCRIBE_TEXT = "Для продолжения работы подпишитесь на наш канал 👇"
+
+# Время автоудаления (в секундах)
+DELETE_WAIT_AFTER = 600       # 10 минут — для сообщения "Ожидайте оператора"
+DELETE_SUBSCRIBE_AFTER = 86400  # 24 часа — для сообщения "Подпишитесь на канал"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,23 +57,29 @@ async def delete_after(message: Message, seconds: int):
         logging.warning(f"Не удалось удалить сообщение: {e}")
 
 async def send_wait_message(chat_id: int):
-    """Отправляет сообщение ожидания и планирует его удаление."""
+    """Отправляет сообщение ожидания и планирует его удаление через 10 минут."""
     msg = await bot.send_message(chat_id=chat_id, text=WAIT_TEXT)
-    asyncio.create_task(delete_after(msg, DELETE_AFTER))
+    asyncio.create_task(delete_after(msg, DELETE_WAIT_AFTER))
+
+async def send_subscribe_message(chat_id: int):
+    """Отправляет просьбу подписаться и планирует удаление через 24 часа."""
+    msg = await bot.send_message(
+        chat_id=chat_id,
+        text=SUBSCRIBE_TEXT,
+        reply_markup=subscribe_kb()
+    )
+    asyncio.create_task(delete_after(msg, DELETE_SUBSCRIBE_AFTER))
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     user_id = message.from_user.id
 
     if await is_subscribed(user_id):
-        # Пункт 2: подписан — сразу шлём сообщение
+        # Пункт 2: подписан — шлём сообщение ожидания
         await send_wait_message(user_id)
     else:
         # Пункт 3: не подписан — просим подписаться
-        await message.answer(
-            "Для продолжения работы подпишитесь на наш канал 👇",
-            reply_markup=subscribe_kb()
-        )
+        await send_subscribe_message(user_id)
 
 @dp.callback_query(F.data == "check_sub")
 async def check_sub(callback: CallbackQuery):
@@ -82,16 +92,13 @@ async def check_sub(callback: CallbackQuery):
         pass
 
     if await is_subscribed(user_id):
-        # Пункт 4: подписался — шлём сообщение из пункта 2
+        # Пункт 4: подписался — шлём сообщение ожидания
         await callback.answer()
         await send_wait_message(user_id)
     else:
         # Пункт 5: не подписался — снова просим подписаться
         await callback.answer("Вы ещё не подписались 😔", show_alert=True)
-        await callback.message.answer(
-            "Для продолжения работы подпишитесь на наш канал 👇",
-            reply_markup=subscribe_kb()
-        )
+        await send_subscribe_message(user_id)
 
 async def main():
     await dp.start_polling(bot)
