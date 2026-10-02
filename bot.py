@@ -25,7 +25,7 @@ WAIT_TEXT = (
 SUBSCRIBE_TEXT = "Для продолжения работы подпишитесь на наш канал 👇"
 
 # Время автоудаления (в секундах)
-DELETE_WAIT_AFTER = 600       # 10 минут — для сообщения "Ожидайте оператора"
+DELETE_WAIT_AFTER = 600         # 10 минут — для сообщения "Ожидайте оператора"
 DELETE_SUBSCRIBE_AFTER = 86400  # 24 часа — для сообщения "Подпишитесь на канал"
 
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +73,12 @@ async def send_subscribe_message(chat_id: int):
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
     user_id = message.from_user.id
+
+    # Удаляем сообщение пользователя "/start" сразу
+    try:
+        await message.delete()
+    except Exception as e:
+        logging.warning(f"Не удалось удалить /start: {e}")
 
     if await is_subscribed(user_id):
         # Пункт 2: подписан — шлём сообщение ожидания
